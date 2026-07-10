@@ -8,7 +8,6 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.ZoneOffset;
@@ -117,9 +116,19 @@ public class AwsSnsSmsGateway implements SmsGateway {
         return "AWS_SNS";
     }
 
-    // Package-visible for direct testing of the encoding contract (see AwsSnsSmsGatewayEncodingTest).
+    // RFC 3986 percent-encoding required by SigV4 (space -> %20, '~' literal). Finding 2.
     static String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+        StringBuilder sb = new StringBuilder(value.length() * 3);
+        for (byte b : value.getBytes(StandardCharsets.UTF_8)) {
+            int c = b & 0xFF;
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                    || c == '-' || c == '_' || c == '.' || c == '~') {
+                sb.append((char) c);
+            } else {
+                sb.append('%').append(String.format("%02X", c));
+            }
+        }
+        return sb.toString();
     }
 
     private static String sha256Hex(String data) {
