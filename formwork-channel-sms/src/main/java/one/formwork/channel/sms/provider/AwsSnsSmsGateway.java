@@ -97,7 +97,7 @@ public class AwsSnsSmsGateway implements SmsGateway {
             // SNS returns XML; extract MessageId
             String messageId = extractXmlElement(responseBody, "MessageId");
             log.info("AWS SNS SMS sent: messageId={}, to={}", messageId, PhoneMasker.mask(message.to()));
-            return SmsResult.success(messageId, "AWS_SNS", 1);
+            return SmsResult.success(messageId, "AWS_SNS", SegmentCalculator.segments(message.body()));
         } catch (WebClientResponseException e) {
             log.error("AWS SNS API error: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             return SmsResult.failure("AWS_SNS", String.valueOf(e.getStatusCode().value()), e.getResponseBodyAsString());

@@ -46,7 +46,7 @@ public class MessageBirdSmsGateway implements SmsGateway {
 
             String messageId = response != null ? String.valueOf(response.get("id")) : null;
             log.info("MessageBird SMS sent: messageId={}, to={}", messageId, PhoneMasker.mask(message.to()));
-            return SmsResult.success(messageId, "MESSAGEBIRD", 1);
+            return SmsResult.success(messageId, "MESSAGEBIRD", SegmentCalculator.segments(message.body()));
         } catch (WebClientResponseException e) {
             log.error("MessageBird API error: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             return SmsResult.failure("MESSAGEBIRD", String.valueOf(e.getStatusCode().value()), e.getResponseBodyAsString());
