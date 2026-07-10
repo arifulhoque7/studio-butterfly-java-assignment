@@ -1,0 +1,2 @@
+one.formwork.channel.sms.config.SmsChannelAutoConfiguration
+one.formwork.channel.sms.config.SmsFlywayAutoConfiguration
