@@ -1,6 +1,7 @@
 package one.formwork.channel.sms.provider;
 
 import one.formwork.channel.sms.api.*;
+import one.formwork.channel.sms.validation.PhoneMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -95,7 +96,7 @@ public class AwsSnsSmsGateway implements SmsGateway {
 
             // SNS returns XML; extract MessageId
             String messageId = extractXmlElement(responseBody, "MessageId");
-            log.info("AWS SNS SMS sent: messageId={}, to={}", messageId, message.to());
+            log.info("AWS SNS SMS sent: messageId={}, to={}", messageId, PhoneMasker.mask(message.to()));
             return SmsResult.success(messageId, "AWS_SNS", 1);
         } catch (WebClientResponseException e) {
             log.error("AWS SNS API error: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());

@@ -112,8 +112,7 @@ public class SmsCostService {
     }
 
     static String maskRecipient(String phoneNumber) {
-        if (phoneNumber == null || phoneNumber.length() < 6) return "***";
-        return phoneNumber.substring(0, 4) + "***" + phoneNumber.substring(phoneNumber.length() - 2);
+        return one.formwork.channel.sms.validation.PhoneMasker.mask(phoneNumber);
     }
 
     public record ProviderCostSummary(String provider, BigDecimal totalCost, long messageCount) {}

@@ -1,6 +1,7 @@
 package one.formwork.channel.sms.provider;
 
 import one.formwork.channel.sms.api.*;
+import one.formwork.channel.sms.validation.PhoneMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -52,7 +53,7 @@ public class VonageSmsGateway implements SmsGateway {
                     String status = String.valueOf(first.get("status"));
                     if ("0".equals(status)) {
                         String messageId = String.valueOf(first.get("message-id"));
-                        log.info("Vonage SMS sent: messageId={}, to={}", messageId, message.to());
+                        log.info("Vonage SMS sent: messageId={}, to={}", messageId, PhoneMasker.mask(message.to()));
                         return SmsResult.success(messageId, "VONAGE", messages.size());
                     } else {
                         String errorText = String.valueOf(first.get("error-text"));

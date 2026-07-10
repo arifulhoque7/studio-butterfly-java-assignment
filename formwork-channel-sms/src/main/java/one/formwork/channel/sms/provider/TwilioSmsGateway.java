@@ -1,6 +1,7 @@
 package one.formwork.channel.sms.provider;
 
 import one.formwork.channel.sms.api.*;
+import one.formwork.channel.sms.validation.PhoneMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -51,7 +52,7 @@ public class TwilioSmsGateway implements SmsGateway {
                 segments = Integer.parseInt(String.valueOf(response.get("num_segments")));
             }
 
-            log.info("Twilio SMS sent: sid={}, to={}", sid, message.to());
+            log.info("Twilio SMS sent: sid={}, to={}", sid, PhoneMasker.mask(message.to()));
             return SmsResult.success(sid, "TWILIO", segments);
         } catch (WebClientResponseException e) {
             log.error("Twilio API error: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
