@@ -464,6 +464,24 @@ Why this trio over the alternatives: Findings 5–8 are all strong, but 5 (segme
   ```
 - **Suggested integration test:** Optional — run the send path with a real appender and grep the captured output across all five gateways to prove the masking helper is applied everywhere (guards against one gateway being missed).
 
+### Executed results (red on original, green on fix)
+
+All three fixes were implemented test-first and run locally. Because this extracted folder has no build tool of its own (the module builds inside the `formwork` reactor, whose parent pom and `formwork-base-tenant` artifact are not present here), the tests were executed in an isolated Maven harness: the tenant-independent packages (`api`, `provider`, `validation`, `cost`) plus a minimal `TenantScopedEntity` stub, with dependencies resolved through the Spring Boot BOM. On Java 26, Mockito requires `-Dnet.bytebuddy.experimental=true`. In the real reactor, `mvn -pl formwork-channel-sms test` runs the same tests against the actual base classes.
+
+**Fixed code:** `Tests run: 14, Failures: 0, Errors: 0` — BUILD SUCCESS.
+
+**Original (pre-fix) code:** `Tests run: 14, Failures: 5` — BUILD FAILURE. Failures, one group per fix:
+
+| Fix | Test | Failure on original code |
+|-----|------|--------------------------|
+| B — AWS SigV4 | `encode_space_usesPercent20_notPlus` | `expected <Hello%20world> but was <Hello+world>` |
+| B — AWS SigV4 | `encode_tilde_isUnreservedAndNotEscaped` | `expected <~> but was <%7E>` |
+| B — AWS SigV4 | `encode_asterisk_isPercentEncoded` | `expected <%2A> but was <*>` |
+| C — PII logs | `send_success_doesNotLogRawRecipient` | raw MSISDN present in log output: `expected <false> but was <true>` |
+| A — cost wiring | `sendSms_success_recordsCostOnce` | Mockito `Wanted but not invoked: costService.recordCost(...)` — the send path never called it |
+
+Each test fails on the AI-generated code and passes after the fix, satisfying Part 2's "fails first, passes after" requirement. Commit trail: `05fff5f`/`9ff8fca` (Finding 2), `e31df6d`/`07f28fb` (Finding 3), `c3d2f1b` (Finding 1).
+
 ---
 
 ## 6. Remaining Improvements (with more time)
