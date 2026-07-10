@@ -1,6 +1,7 @@
 package one.formwork.channel.sms.api;
 
 import java.util.UUID;
+import one.formwork.channel.sms.cost.SmsCostService;
 import one.formwork.channel.sms.validation.PhoneNumberValidator.InvalidPhoneNumberException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -29,11 +30,14 @@ class SmsChannelServiceTest {
     @Mock
     private SmsChannelProperties properties;
 
+    @Mock
+    private SmsCostService costService;
+
     private SmsChannelService service;
 
     @BeforeEach
     void setUp() {
-        service = new SmsChannelService(List.of(twilioGateway, vonageGateway), properties);
+        service = new SmsChannelService(List.of(twilioGateway, vonageGateway), properties, costService);
     }
 
     @Nested
@@ -52,6 +56,32 @@ class SmsChannelServiceTest {
             assertEquals(expected, result);
             verify(twilioGateway).send(message);
             verify(vonageGateway, never()).send(any());
+        }
+
+        @Test
+        void sendSms_success_recordsCostOnce() {
+            // RED on original: sendSms never called SmsCostService, so no cost was ever recorded.
+            when(properties.getProvider()).thenReturn("TWILIO");
+            when(twilioGateway.supports("TWILIO")).thenReturn(true);
+            SmsResult ok = SmsResult.success("SM1", "TWILIO", 2);
+            when(twilioGateway.send(any(SmsMessage.class))).thenReturn(ok);
+
+            SmsMessage message = new SmsMessage("+4915112345678", "Hello there", tenantId);
+            service.sendSms(message);
+
+            verify(costService).recordCost(tenantId, "+4915112345678", ok);
+        }
+
+        @Test
+        void sendSms_failure_doesNotRecordCost() {
+            when(properties.getProvider()).thenReturn("TWILIO");
+            when(twilioGateway.supports("TWILIO")).thenReturn(true);
+            when(twilioGateway.send(any(SmsMessage.class)))
+                    .thenReturn(SmsResult.failure("TWILIO", "500", "Server Error"));
+
+            service.sendSms(new SmsMessage("+4915112345678", "Hello", tenantId));
+
+            verify(costService, never()).recordCost(any(), any(), any());
         }
 
         @Test
