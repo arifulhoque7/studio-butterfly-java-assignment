@@ -2,9 +2,18 @@ package one.formwork.channel.sms.api;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 @ConfigurationProperties(prefix = "formwork.sms-channel")
 public class SmsChannelProperties {
     private String provider = "TWILIO";
+    /** Per-tenant provider overrides, keyed by tenantId string. Empty => tenant uses the global provider. */
+    private Map<String, String> tenantProviders = new LinkedHashMap<>();
+    /** Ordered secondary providers tried, in order, after the primary is exhausted. */
+    private List<String> failover = new ArrayList<>();
     private TwilioProperties twilio = new TwilioProperties();
     private VonageProperties vonage = new VonageProperties();
     private AwsSnsProperties awsSns = new AwsSnsProperties();
@@ -14,6 +23,10 @@ public class SmsChannelProperties {
 
     public String getProvider() { return provider; }
     public void setProvider(String p) { this.provider = p; }
+    public Map<String, String> getTenantProviders() { return tenantProviders; }
+    public void setTenantProviders(Map<String, String> t) { this.tenantProviders = t; }
+    public List<String> getFailover() { return failover; }
+    public void setFailover(List<String> f) { this.failover = f; }
     public TwilioProperties getTwilio() { return twilio; }
     public void setTwilio(TwilioProperties t) { this.twilio = t; }
     public VonageProperties getVonage() { return vonage; }
@@ -56,8 +69,9 @@ public class SmsChannelProperties {
         public String getOriginator() { return originator; } public void setOriginator(String s) { this.originator = s; }
     }
     public static class RetryProperties {
-        private int maxAttempts = 3; private String backoff = "5s";
+        private int maxAttempts = 3; private String backoff = "5s"; private String maxBackoff = "30s";
         public int getMaxAttempts() { return maxAttempts; } public void setMaxAttempts(int m) { this.maxAttempts = m; }
         public String getBackoff() { return backoff; } public void setBackoff(String b) { this.backoff = b; }
+        public String getMaxBackoff() { return maxBackoff; } public void setMaxBackoff(String b) { this.maxBackoff = b; }
     }
 }

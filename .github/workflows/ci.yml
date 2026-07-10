@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, review-and-fixes]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # The module normally builds inside the private formwork reactor (parent pom +
+      # formwork-base-tenant), which is not available to a public CI runner. The
+      # verification harness stubs the one external base class and builds the module's
+      # tenant-independent packages, so the review's fixes and Part 3 features are verified
+      # here. See verification-harness/pom.xml for details.
+      - name: Copy module sources into the verification harness
+        run: bash ci/copy-sources.sh
+
+      - name: Build, test, and enforce coverage gate
+        run: mvn -B -f verification-harness/pom.xml verify
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: verification-harness/target/site/jacoco/

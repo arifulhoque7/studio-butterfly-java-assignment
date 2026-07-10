@@ -1,6 +1,7 @@
 package one.formwork.channel.sms.provider;
 
 import one.formwork.channel.sms.api.*;
+import one.formwork.channel.sms.validation.PhoneMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -8,7 +9,6 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.ZoneOffset;
@@ -96,8 +96,8 @@ public class AwsSnsSmsGateway implements SmsGateway {
 
             // SNS returns XML; extract MessageId
             String messageId = extractXmlElement(responseBody, "MessageId");
-            log.info("AWS SNS SMS sent: messageId={}, to={}", messageId, message.to());
-            return SmsResult.success(messageId, "AWS_SNS", 1);
+            log.info("AWS SNS SMS sent: messageId={}, to={}", messageId, PhoneMasker.mask(message.to()));
+            return SmsResult.success(messageId, "AWS_SNS", SegmentCalculator.segments(message.body()));
         } catch (WebClientResponseException e) {
             log.error("AWS SNS API error: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             return SmsResult.failure("AWS_SNS", String.valueOf(e.getStatusCode().value()), e.getResponseBodyAsString());
@@ -117,8 +117,19 @@ public class AwsSnsSmsGateway implements SmsGateway {
         return "AWS_SNS";
     }
 
-    private static String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    // RFC 3986 percent-encoding required by SigV4 (space -> %20, '~' literal). Finding 2.
+    static String encode(String value) {
+        StringBuilder sb = new StringBuilder(value.length() * 3);
+        for (byte b : value.getBytes(StandardCharsets.UTF_8)) {
+            int c = b & 0xFF;
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                    || c == '-' || c == '_' || c == '.' || c == '~') {
+                sb.append((char) c);
+            } else {
+                sb.append('%').append(String.format("%02X", c));
+            }
+        }
+        return sb.toString();
     }
 
     private static String sha256Hex(String data) {

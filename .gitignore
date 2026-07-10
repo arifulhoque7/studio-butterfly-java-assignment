@@ -4,3 +4,7 @@ target/
 .idea/
 *.iml
 *.log
+
+# Verification harness: module sources are copied in at build time by ci/copy-sources.sh
+verification-harness/src/main/java/one/formwork/channel/
+verification-harness/src/test/

@@ -1,6 +1,7 @@
 package one.formwork.channel.sms.provider;
 
 import one.formwork.channel.sms.api.*;
+import one.formwork.channel.sms.validation.PhoneMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -44,8 +45,8 @@ public class MessageBirdSmsGateway implements SmsGateway {
                     .block();
 
             String messageId = response != null ? String.valueOf(response.get("id")) : null;
-            log.info("MessageBird SMS sent: messageId={}, to={}", messageId, message.to());
-            return SmsResult.success(messageId, "MESSAGEBIRD", 1);
+            log.info("MessageBird SMS sent: messageId={}, to={}", messageId, PhoneMasker.mask(message.to()));
+            return SmsResult.success(messageId, "MESSAGEBIRD", SegmentCalculator.segments(message.body()));
         } catch (WebClientResponseException e) {
             log.error("MessageBird API error: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             return SmsResult.failure("MESSAGEBIRD", String.valueOf(e.getStatusCode().value()), e.getResponseBodyAsString());

@@ -1,6 +1,7 @@
 package one.formwork.channel.sms.provider;
 
 import one.formwork.channel.sms.api.*;
+import one.formwork.channel.sms.validation.PhoneMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -36,8 +37,8 @@ public class BudgetSmsGateway implements SmsGateway {
 
             if (response != null && response.startsWith("OK")) {
                 String messageId = response.length() > 3 ? response.substring(3).trim() : response;
-                log.info("BudgetSMS sent: messageId={}, to={}", messageId, message.to());
-                return SmsResult.success(messageId, "BUDGET_SMS", 1);
+                log.info("BudgetSMS sent: messageId={}, to={}", messageId, PhoneMasker.mask(message.to()));
+                return SmsResult.success(messageId, "BUDGET_SMS", SegmentCalculator.segments(message.body()));
             } else {
                 log.error("BudgetSMS error response: {}", response);
                 return SmsResult.failure("BUDGET_SMS", "API_ERROR", response);
