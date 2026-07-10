@@ -37,7 +37,9 @@ class SmsChannelServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SmsChannelService(List.of(twilioGateway, vonageGateway), properties, costService);
+        // No-op sleeper + fixed jitter so retry/backoff runs instantly in unit tests.
+        service = new SmsChannelService(List.of(twilioGateway, vonageGateway), properties, costService,
+                millis -> { }, () -> 0.0);
     }
 
     @Nested
@@ -158,6 +160,108 @@ class SmsChannelServiceTest {
         void handleDeliveryCallback_AnyInput_DoesNotThrow() {
             assertDoesNotThrow(() ->
                     service.handleDeliveryCallback("TWILIO", Map.of("status", "delivered")));
+        }
+    }
+
+    @Nested
+    class TenantRoutingAndFailover {
+
+        private SmsChannelService serviceWith(SmsChannelProperties props) {
+            return new SmsChannelService(List.of(twilioGateway, vonageGateway), props, costService,
+                    millis -> { }, () -> 0.0);
+        }
+
+        private SmsChannelProperties props() {
+            SmsChannelProperties p = new SmsChannelProperties();
+            p.setProvider("TWILIO");
+            return p;
+        }
+
+        @Test
+        void tenantOverride_routesToTenantProvider() {
+            SmsChannelProperties p = props();
+            p.setTenantProviders(Map.of(tenantId.toString(), "VONAGE"));
+            when(vonageGateway.supports("VONAGE")).thenReturn(true);
+            SmsResult ok = SmsResult.success("VM1", "VONAGE", 1);
+            when(vonageGateway.send(any())).thenReturn(ok);
+
+            SmsResult result = serviceWith(p).sendSms(new SmsMessage("+4915112345678", "Hi", tenantId));
+
+            assertEquals("VONAGE", result.provider());
+            verify(vonageGateway).send(any());
+            verify(twilioGateway, never()).send(any());
+        }
+
+        @Test
+        void tenantWithoutOverride_usesGlobalProvider() {
+            SmsChannelProperties p = props(); // no overrides
+            when(twilioGateway.supports("TWILIO")).thenReturn(true);
+            when(twilioGateway.send(any())).thenReturn(SmsResult.success("SM1", "TWILIO", 1));
+
+            SmsResult result = serviceWith(p).sendSms(new SmsMessage("+4915112345678", "Hi", tenantId));
+
+            assertEquals("TWILIO", result.provider());
+            verify(vonageGateway, never()).send(any());
+        }
+
+        @Test
+        void oneTenantOverride_doesNotAffectAnotherTenant() {
+            UUID otherTenant = UUID.randomUUID();
+            SmsChannelProperties p = props();
+            p.setTenantProviders(Map.of(otherTenant.toString(), "VONAGE")); // override for a DIFFERENT tenant
+            when(twilioGateway.supports("TWILIO")).thenReturn(true);
+            when(twilioGateway.send(any())).thenReturn(SmsResult.success("SM1", "TWILIO", 1));
+
+            SmsResult result = serviceWith(p).sendSms(new SmsMessage("+4915112345678", "Hi", tenantId));
+
+            assertEquals("TWILIO", result.provider(), "this tenant must stay on the global provider");
+            verify(vonageGateway, never()).send(any());
+        }
+
+        @Test
+        void failover_primaryFails_secondarySucceeds() {
+            SmsChannelProperties p = props();
+            p.setFailover(List.of("VONAGE"));
+            when(twilioGateway.supports("TWILIO")).thenReturn(true);
+            when(twilioGateway.send(any())).thenReturn(SmsResult.failure("TWILIO", "400", "bad"));
+            when(vonageGateway.supports("VONAGE")).thenReturn(true);
+            SmsResult ok = SmsResult.success("VM1", "VONAGE", 1);
+            when(vonageGateway.send(any())).thenReturn(ok);
+
+            SmsResult result = serviceWith(p).sendSms(new SmsMessage("+4915112345678", "Hi", tenantId));
+
+            assertTrue(result.isSuccess());
+            assertEquals("VONAGE", result.provider());
+            verify(twilioGateway).send(any());
+            verify(vonageGateway).send(any());
+            verify(costService).recordCost(tenantId, "+4915112345678", ok);
+        }
+
+        @Test
+        void retry_transientFailureThenSuccess_retriesSameProvider() {
+            SmsChannelProperties p = props(); // maxAttempts default 3
+            when(twilioGateway.supports("TWILIO")).thenReturn(true);
+            when(twilioGateway.send(any()))
+                    .thenReturn(SmsResult.failure("TWILIO", "503", "unavailable"))
+                    .thenReturn(SmsResult.success("SM1", "TWILIO", 1));
+
+            SmsResult result = serviceWith(p).sendSms(new SmsMessage("+4915112345678", "Hi", tenantId));
+
+            assertTrue(result.isSuccess());
+            verify(twilioGateway, times(2)).send(any()); // 503 retried once, then succeeded
+        }
+
+        @Test
+        void retry_nonRetryableFailure_isNotRetried() {
+            SmsChannelProperties p = props();
+            when(twilioGateway.supports("TWILIO")).thenReturn(true);
+            when(twilioGateway.send(any())).thenReturn(SmsResult.failure("TWILIO", "400", "bad request"));
+
+            SmsResult result = serviceWith(p).sendSms(new SmsMessage("+4915112345678", "Hi", tenantId));
+
+            assertFalse(result.isSuccess());
+            verify(twilioGateway, times(1)).send(any()); // 400 is deterministic: no retry
+            verify(costService, never()).recordCost(any(), any(), any());
         }
     }
 }
