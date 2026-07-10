@@ -117,7 +117,8 @@ public class AwsSnsSmsGateway implements SmsGateway {
         return "AWS_SNS";
     }
 
-    private static String encode(String value) {
+    // Package-visible for direct testing of the encoding contract (see AwsSnsSmsGatewayEncodingTest).
+    static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
