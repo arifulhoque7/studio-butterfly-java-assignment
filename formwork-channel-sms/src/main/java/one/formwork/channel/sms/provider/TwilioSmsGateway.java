@@ -22,11 +22,16 @@ public class TwilioSmsGateway implements SmsGateway {
     private final SmsChannelProperties.TwilioProperties config;
 
     public TwilioSmsGateway(SmsChannelProperties.TwilioProperties config) {
+        this(config, TWILIO_API_URL);
+    }
+
+    // Base-URL constructor so an integration test can point the real client (with real auth) at a stub server.
+    TwilioSmsGateway(SmsChannelProperties.TwilioProperties config, String baseUrl) {
         this.config = config;
         String credentials = Base64.getEncoder().encodeToString(
                 (config.getAccountSid() + ":" + config.getAuthToken()).getBytes(StandardCharsets.UTF_8));
         this.webClient = WebClient.builder()
-                .baseUrl(TWILIO_API_URL)
+                .baseUrl(baseUrl)
                 .defaultHeader("Authorization", "Basic " + credentials)
                 .build();
     }
